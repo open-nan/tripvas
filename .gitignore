@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local browser map bridge/config with private AMap credentials
+/public/map.js
+/public/config.js
+
 # vercel
 .vercel
 
