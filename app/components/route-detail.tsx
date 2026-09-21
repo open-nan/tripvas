@@ -57,7 +57,7 @@ type RouteDetailProps = {
   /** 定位路线的目标点位；只有从当前位置规划到点位时才有值。 */
   locationRouteTarget: Marker | null;
   /** 当前选中的点位；没有有效路线时会作为空态上下文展示。 */
-  marker: Marker;
+  marker: Marker | null;
   /**
    * 替换工具面板按钮组的扩展按钮。
    *
@@ -145,7 +145,7 @@ type RouteTitleProps = {
   /** 点到点路线端点；存在时标题会渲染成两个可点击点位名称。 */
   pointRoute: PointRouteEndpoints | null;
   /** 定位路线或空态下的目标点位。 */
-  targetMarker: Marker;
+  targetMarker: Marker | null;
 };
 
 /**
@@ -289,7 +289,7 @@ export function RouteDetail({
   const routeTo = pointRoute
     ? pointRoute.to.lngLat
     : isLocationRoute
-      ? targetMarker.lngLat
+      ? targetMarker?.lngLat ?? null
       : null;
   const routeDistanceMeters =
     hasActiveRoute && routePlan?.plans[0]?.distance
@@ -301,7 +301,7 @@ export function RouteDetail({
   const routeTitle = pointRoute
     ? `${pointRoute.from.name} → ${pointRoute.to.name}`
     : isLocationRoute
-      ? `当前位置 → ${targetMarker.name}`
+      ? `当前位置 → ${targetMarker?.name ?? "目标点"}`
       : "暂无线路";
   const selectedRoutePlan =
     hasActiveRoute && selectedRoutePlanId
@@ -500,7 +500,7 @@ function RouteTitle({
     );
   }
 
-  if (isLocationRoute) {
+  if (isLocationRoute && targetMarker) {
     return (
       <div className="mt-1 flex min-w-0 items-center gap-1 text-sm font-semibold">
         <span className="shrink-0">当前位置</span>

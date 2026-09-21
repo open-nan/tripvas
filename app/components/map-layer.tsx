@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { defaultMapCenter } from "./map-editor-data";
 
 export type MarkerKind = NanMapMarkerKind;
 export type MapLayerMarker = NanMapLayerMarker;
@@ -60,7 +61,6 @@ type MapLayerStatusProps = {
 };
 
 const MAP_SCRIPT_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/map.js?v=import-export-20260909`;
-const SHANGHAI_CENTER: NanMapLngLat = [121.4737, 31.2304];
 const DEFAULT_VIEWPORT_PADDING: MapViewportPadding = [96, 128, 96, 456];
 
 let mapScriptPromise: Promise<NanMapBridge> | undefined;
@@ -87,6 +87,7 @@ export function MapLayer({
   const mapBridgeRef = useRef<NanMapBridge | null>(null);
   const markerCountRef = useRef(markers.length);
   const routeFitKeyRef = useRef<string | null>(null);
+  const userLocationKeyRef = useRef<string | null>(null);
   const viewportPaddingKeyRef = useRef("");
   const onMapClickRef = useRef(onMapClick);
   const onMarkerMoveRef = useRef(onMarkerMove);
@@ -94,7 +95,7 @@ export function MapLayer({
   const onRouteClickRef = useRef(onRouteClick);
   const onSelectMarkerRef = useRef(onSelectMarker);
   const onViewportChangeRef = useRef(onViewportChange);
-  const initialCenterRef = useRef(markers[0]?.lngLat ?? SHANGHAI_CENTER);
+  const initialCenterRef = useRef(markers[0]?.lngLat ?? defaultMapCenter);
   const [status, setStatus] = useState<"error" | "loading" | "ready">(
     "loading",
   );
@@ -223,6 +224,9 @@ export function MapLayer({
 
       const shouldFitRoute =
         routeFitKey !== null && routeFitKeyRef.current !== routeFitKey;
+      const userLocationKey = userLocation?.join(":") ?? null;
+      const shouldFitUserLocation =
+        userLocationKey !== null && userLocationKeyRef.current !== userLocationKey;
       const shouldFitViewport =
         viewportPaddingKeyRef.current !== viewportPaddingKey;
 
@@ -233,6 +237,9 @@ export function MapLayer({
         });
         didFitViewRef.current = true;
         markerCountRef.current = markers.length;
+      } else if (shouldFitUserLocation) {
+        mapBridge.fitView({ padding: viewportPadding });
+        didFitViewRef.current = true;
       } else if (
         !didFitViewRef.current ||
         markerCountRef.current !== markers.length ||
@@ -246,6 +253,7 @@ export function MapLayer({
       }
 
       routeFitKeyRef.current = routeFitKey;
+      userLocationKeyRef.current = userLocationKey;
       viewportPaddingKeyRef.current = viewportPaddingKey;
     } catch {
       errorTimeoutId = window.setTimeout(() => {

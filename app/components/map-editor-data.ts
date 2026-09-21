@@ -30,44 +30,10 @@ import type {
   WhiteboardTool,
 } from "./map-editor-types";
 
-export const initialMarkers: Marker[] = [
-  {
-    id: "marker-renmin-square",
-    name: "人民广场",
-    address: "上海市黄浦区人民大道",
-    color: "#0f766e",
-    kind: "star",
-    lngLat: [121.475, 31.234],
-    locked: true,
-  },
-  {
-    id: "marker-yuyuan",
-    name: "豫园",
-    address: "上海市黄浦区福佑路168号",
-    color: "#d97706",
-    kind: "circle",
-    lngLat: [121.492, 31.227],
-    locked: false,
-  },
-  {
-    id: "marker-bund",
-    name: "外滩观景点",
-    address: "中山东一路观景平台",
-    color: "#0284c7",
-    kind: "circle-star",
-    lngLat: [121.493, 31.24],
-    locked: false,
-  },
-  {
-    id: "marker-lujiazui",
-    name: "陆家嘴",
-    address: "上海市浦东新区世纪大道",
-    color: "#be123c",
-    kind: "circle-number",
-    lngLat: [121.502, 31.239],
-    locked: false,
-  },
-];
+export const initialMarkers: Marker[] = [];
+
+/** 浏览器定位不可用时使用天安门作为地图默认中心。 */
+export const defaultMapCenter: NanMapLngLat = [116.397389, 39.908722];
 
 export const panelModes: Array<{ id: PanelMode; label: string; icon: LucideIcon }> = [
   { id: "marker", label: "点位", icon: MapPin },

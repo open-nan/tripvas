@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   defaultMapViewportPadding,
+  defaultMapCenter,
   defaultWhiteboardColor,
   geolocationOptions,
   initialMarkers,
@@ -115,7 +116,9 @@ function getCurrentMapViewport() {
  */
 export default function MapEditor() {
   const [markers, setMarkers] = useState<Marker[]>(initialMarkers);
-  const [selectedMarkerId, setSelectedMarkerId] = useState(initialMarkers[1].id);
+  const [selectedMarkerId, setSelectedMarkerId] = useState(
+    initialMarkers[0]?.id ?? "",
+  );
   const [panelMode, setPanelMode] = useState<PanelMode>("marker");
   const [importExportView, setImportExportView] =
     useState<ImportExportPanelView>("export");
@@ -183,7 +186,7 @@ export default function MapEditor() {
 
   const selectedMarker = useMemo(
     () =>
-      markers.find((marker) => marker.id === selectedMarkerId) ?? markers[0],
+      markers.find((marker) => marker.id === selectedMarkerId) ?? markers[0] ?? null,
     [markers, selectedMarkerId],
   );
   const markerNumberById = useMemo(
@@ -194,7 +197,9 @@ export default function MapEditor() {
       }, {}),
     [markers],
   );
-  const selectedMarkerNumber = markerNumberById[selectedMarker.id] ?? 1;
+  const selectedMarkerNumber = selectedMarker
+    ? markerNumberById[selectedMarker.id] ?? 1
+    : 0;
 
   const locationRouteTarget = useMemo(
     () =>
@@ -370,8 +375,12 @@ export default function MapEditor() {
   ]);
 
   const routeConnectionCandidates = useMemo(
-    () =>
-      markers.filter(
+    () => {
+      if (!selectedMarker) {
+        return [];
+      }
+
+      return markers.filter(
         (marker) =>
           marker.id !== selectedMarker.id &&
           !findPointRouteConnection(
@@ -379,8 +388,9 @@ export default function MapEditor() {
             selectedMarker.id,
             marker.id,
           ),
-      ),
-    [markers, routeConnections, selectedMarker.id],
+      );
+    },
+    [markers, routeConnections, selectedMarker],
   );
 
   const routeConnectionSummaries = useMemo<RouteConnectionSummary[]>(
@@ -711,6 +721,12 @@ export default function MapEditor() {
   }, [isLocated, locationStatus, startLocationTracking, stopLocationTracking]);
 
   useEffect(() => {
+    const requestTimeoutId = window.setTimeout(startLocationTracking, 0);
+
+    return () => window.clearTimeout(requestTimeoutId);
+  }, [startLocationTracking]);
+
+  useEffect(() => {
     return () => {
       isTrackingLocationRef.current = false;
       clearLocationWatch();
@@ -886,6 +902,10 @@ export default function MapEditor() {
   ]);
 
   const updateSelectedMarker = (updates: Partial<Marker>) => {
+    if (!selectedMarker) {
+      return;
+    }
+
     setMarkers((currentMarkers) =>
       currentMarkers.map((marker) =>
         marker.id === selectedMarker.id ? { ...marker, ...updates } : marker,
@@ -895,16 +915,18 @@ export default function MapEditor() {
 
   const handleAddMarker = () => {
     const nextIndex = markers.length + 1;
+    const viewportCenter = getCurrentMapViewport()?.center;
+    const markerCenter =
+      selectedMarker?.lngLat ?? userLocation?.lngLat ?? viewportCenter ?? defaultMapCenter;
     const nextMarker: Marker = {
       id: `marker-${Date.now()}`,
       name: `新点位 ${nextIndex}`,
       address: "拖动标记调整位置",
       color: "#7c3aed",
       kind: "circle-number",
-      lngLat: [
-        selectedMarker.lngLat[0] + 0.008,
-        selectedMarker.lngLat[1] - 0.006,
-      ],
+      lngLat: selectedMarker
+        ? [markerCenter[0] + 0.008, markerCenter[1] - 0.006]
+        : [...markerCenter],
       locked: false,
     };
 
@@ -1171,11 +1193,15 @@ export default function MapEditor() {
 
   const handleCreateRouteConnection = useCallback(
     (targetMarkerId: string) => {
-      const sourceMarkerId = routeConnectionSourceId ?? selectedMarker.id;
+      const sourceMarkerId = routeConnectionSourceId ?? selectedMarker?.id;
+
+      if (!sourceMarkerId) {
+        return;
+      }
 
       connectPointRouteMarkers(sourceMarkerId, targetMarkerId);
     },
-    [connectPointRouteMarkers, routeConnectionSourceId, selectedMarker.id],
+    [connectPointRouteMarkers, routeConnectionSourceId, selectedMarker],
   );
 
   const handleSelectRoutePlan = useCallback((planId: string) => {
@@ -1254,7 +1280,7 @@ export default function MapEditor() {
     const nextSelectedMarkerId =
       deletedPointRoute?.fromMarkerId ??
       deletedLocationTargetId ??
-      selectedMarker.id;
+      selectedMarker?.id ?? "";
 
     if (deletedPointRoute) {
       setRouteConnections((currentRoutes) =>
@@ -1314,7 +1340,7 @@ export default function MapEditor() {
     locationRouteTargetId,
     openPanelMode,
     pointRoute,
-    selectedMarker.id,
+    selectedMarker,
     userLocation,
   ]);
 
@@ -1330,7 +1356,7 @@ export default function MapEditor() {
         onSelectMarker={handleSelectMarker}
         routes={mapRoutes}
         routeFitKey={routeFitKey}
-        selectedMarkerId={selectedMarker.id}
+        selectedMarkerId={selectedMarker?.id ?? ""}
         userLocation={userLocation?.lngLat ?? null}
         userLocationAccuracy={userLocation?.accuracy}
         viewportPadding={mapViewportPadding}

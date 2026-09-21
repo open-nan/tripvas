@@ -47,7 +47,7 @@ type EditorPanelProps = {
   /** 当前地图模板对应的 P2P 分享码。 */
   mapShareCode: string;
   /** 当前选中的点位，也是点位详情面板的编辑对象。 */
-  marker: Marker;
+  marker: Marker | null;
   /** 当前选中点位在地图点位列表里的动态序号。 */
   markerNumber: number;
   /** 所有点位 id 到动态序号的映射，用于点位详情和线路候选列表保持同一套编号。 */
@@ -246,18 +246,24 @@ export function EditorPanel({
 
             <CardContent className="panel-content space-y-4 px-4 pb-4 pt-0">
               {mode === "marker" && (
-                <MarkerDetail
-                  isRouteConnectionActive={routeConnectionSourceId === marker.id}
-                  marker={marker}
-                  markerNumber={markerNumber}
-                  markerNumberById={markerNumberById}
-                  onActionSlotChange={handleToolPanelActionSlotChange}
-                  onCancelRouteConnection={onCancelRouteConnection}
-                  onCreateRouteConnection={onCreateRouteConnection}
-                  onStartRouteConnection={onStartRouteConnection}
-                  onUpdateMarker={onUpdateMarker}
-                  routeConnectionCandidates={routeConnectionCandidates}
-                />
+                marker ? (
+                  <MarkerDetail
+                    isRouteConnectionActive={routeConnectionSourceId === marker.id}
+                    marker={marker}
+                    markerNumber={markerNumber}
+                    markerNumberById={markerNumberById}
+                    onActionSlotChange={handleToolPanelActionSlotChange}
+                    onCancelRouteConnection={onCancelRouteConnection}
+                    onCreateRouteConnection={onCreateRouteConnection}
+                    onStartRouteConnection={onStartRouteConnection}
+                    onUpdateMarker={onUpdateMarker}
+                    routeConnectionCandidates={routeConnectionCandidates}
+                  />
+                ) : (
+                  <section className="rounded-lg border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
+                    当前没有点位，点击右侧加号创建第一个点位。
+                  </section>
+                )
               )}
 
               {mode === "route" && (
