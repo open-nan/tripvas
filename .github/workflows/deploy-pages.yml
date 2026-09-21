@@ -79,17 +79,19 @@ jobs:
           mkdir -p .map-vm-input
           cp out/map.js .map-vm-input/map.js
 
-          cargo run \
-            --manifest-path .js-vm/Cargo.toml \
-            --release \
-            -p js_vm_cli \
-            -- all --skip-opt -- \
-            "$GITHUB_WORKSPACE/.map-vm-input" \
-            --out "$GITHUB_WORKSPACE/.map-vm-output" \
-            --entry map.js \
-            --platform web \
-            --clean \
-            --no-static
+          (
+            cd .js-vm
+            cargo run \
+              --release \
+              -p js_vm_cli \
+              -- all --skip-opt -- \
+              "$GITHUB_WORKSPACE/.map-vm-input" \
+              --out "$GITHUB_WORKSPACE/.map-vm-output" \
+              --entry map.js \
+              --platform web \
+              --clean \
+              --no-static
+          )
 
           rm "$GITHUB_WORKSPACE/.map-vm-output/map.bin.map"
           cp -R "$GITHUB_WORKSPACE/.map-vm-output/." out/
