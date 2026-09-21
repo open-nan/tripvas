@@ -2,12 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { defaultMapViewportPadding, geolocationOptions, initialMarkers } from "./map-editor-data";
+import {
+  defaultMapViewportPadding,
+  defaultWhiteboardColor,
+  geolocationOptions,
+  initialMarkers,
+} from "./map-editor-data";
 import { EditorPanel } from "./editor-panel";
 import { FloatingActions } from "./floating-actions";
 import MapLayer from "./map-layer";
 import type {
   LocationStatus,
+  ImportExportPanelView,
+  MapExportViewport,
   MapRouteOverlay,
   MapViewportPadding,
   Marker,
@@ -20,14 +27,25 @@ import type {
   RouteStyle,
   TransportMode,
   UserLocation,
+  WhiteboardBrush,
+  WhiteboardElement,
   WhiteboardTool,
+  WhiteboardWatermarkConfig,
 } from "./map-editor-types";
+import {
+  createMapExportTemplate,
+  createMapTemplateFileName,
+  encodeMapTemplateShareCode,
+  parseMapTemplateImportSource,
+  serializeMapTemplate,
+} from "./map-template";
 import {
   getLocationErrorMessage,
   getPanelAwareMapPadding,
   getRoutePlanningErrorMessage,
   isSamePadding,
 } from "./map-editor-utils";
+import { WhiteboardLayer } from "./whiteboard-layer";
 import { WhiteboardToolbar } from "./whiteboard-toolbar";
 
 function findPointRouteConnection(
@@ -81,6 +99,14 @@ function getSelectedRoutePlan(
   );
 }
 
+function getCurrentMapViewport() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.map?.getViewport?.() ?? null;
+}
+
 /**
  * 地图编辑器顶层组件。
  *
@@ -91,12 +117,32 @@ export default function MapEditor() {
   const [markers, setMarkers] = useState<Marker[]>(initialMarkers);
   const [selectedMarkerId, setSelectedMarkerId] = useState(initialMarkers[1].id);
   const [panelMode, setPanelMode] = useState<PanelMode>("marker");
+  const [importExportView, setImportExportView] =
+    useState<ImportExportPanelView>("export");
   const [transportMode, setTransportMode] = useState<TransportMode>("drive");
   const [city, setCity] = useState("");
   const [isLocated, setIsLocated] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [activeWhiteboardTool, setActiveWhiteboardTool] =
-    useState<WhiteboardTool>("select");
+    useState<WhiteboardTool>("move");
+  const [activeWhiteboardBrush, setActiveWhiteboardBrush] =
+    useState<WhiteboardBrush>("fountain");
+  const [activeWhiteboardColor, setActiveWhiteboardColor] = useState(
+    defaultWhiteboardColor,
+  );
+  const [whiteboardElements, setWhiteboardElements] = useState<
+    WhiteboardElement[]
+  >([]);
+  const [whiteboardWatermark, setWhiteboardWatermark] =
+    useState<WhiteboardWatermarkConfig>({
+      enabled: false,
+      opacity: 0.18,
+      size: 38,
+      spacing: 220,
+      text: "Nan Map",
+      tiled: true,
+    });
+  const [whiteboardViewportVersion, setWhiteboardViewportVersion] = useState(0);
   const [locationStatus, setLocationStatus] =
     useState<LocationStatus>("idle");
   const [locationMessage, setLocationMessage] = useState("定位未开启");
@@ -120,6 +166,8 @@ export default function MapEditor() {
   const [isRouteSelected, setIsRouteSelected] = useState(false);
   const [routeFocusVersion, setRouteFocusVersion] = useState(0);
   const [mapReadyVersion, setMapReadyVersion] = useState(0);
+  const [mapViewportSnapshot, setMapViewportSnapshot] =
+    useState<MapExportViewport | null>(null);
   const [routePlanning, setRoutePlanning] = useState<RoutePlanningState>({
     key: "",
     message: "等待地图加载完成",
@@ -373,14 +421,53 @@ export default function MapEditor() {
     locationStatus === "active" && locationRouteTarget
       ? `已生成到 ${locationRouteTarget.name} 的路线`
       : locationMessage;
+  const mapExportTemplate = useMemo(
+    () =>
+      createMapExportTemplate({
+        activePointRouteId,
+        city,
+        markers,
+        plannedPointRoutes,
+        routeConnections,
+        routeStyles,
+        selectedMarkerId,
+        selectedRoutePlanId,
+        transportMode,
+        viewport: mapViewportSnapshot,
+        whiteboard: {
+          activeBrush: activeWhiteboardBrush,
+          activeColor: activeWhiteboardColor,
+          activeTool: activeWhiteboardTool,
+          elements: whiteboardElements,
+          watermark: whiteboardWatermark,
+        },
+      }),
+    [
+      activePointRouteId,
+      activeWhiteboardBrush,
+      activeWhiteboardColor,
+      activeWhiteboardTool,
+      city,
+      mapViewportSnapshot,
+      markers,
+      plannedPointRoutes,
+      routeConnections,
+      routeStyles,
+      selectedMarkerId,
+      selectedRoutePlanId,
+      transportMode,
+      whiteboardElements,
+      whiteboardWatermark,
+    ],
+  );
+  const mapShareCode = useMemo(
+    () => encodeMapTemplateShareCode(mapExportTemplate),
+    [mapExportTemplate],
+  );
 
   const openPanelMode = useCallback((nextMode: PanelMode) => {
     setPanelMode(nextMode);
     setIsPanelCollapsed(false);
-  }, []);
-
-  const handleMapReadyChange = useCallback((ready: boolean) => {
-    setMapReadyVersion((currentVersion) => (ready ? currentVersion + 1 : 0));
   }, []);
 
   const clearLocationWatch = useCallback(() => {
@@ -394,6 +481,144 @@ export default function MapEditor() {
 
     locationWatchIdRef.current = null;
   }, []);
+
+  const handleOpenImportPanel = useCallback(() => {
+    setImportExportView("import");
+    setRouteConnectionSourceId(null);
+    openPanelMode("import-export");
+  }, [openPanelMode]);
+
+  const handleOpenExportPanel = useCallback(() => {
+    setMapViewportSnapshot(getCurrentMapViewport());
+    setImportExportView("export");
+    setRouteConnectionSourceId(null);
+    openPanelMode("import-export");
+  }, [openPanelMode]);
+
+  const handleDownloadMapTemplate = useCallback(() => {
+    const templateText = serializeMapTemplate(mapExportTemplate);
+    const blob = new Blob([templateText], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = createMapTemplateFileName(mapExportTemplate);
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [mapExportTemplate]);
+
+  const handleImportMapTemplate = useCallback(
+    (source: string) => {
+      try {
+        const template = parseMapTemplateImportSource(source);
+        const selectedMarkerId =
+          template.selectedMarkerId ?? template.markers[0]?.id ?? "";
+        const activePointRoute =
+          template.activePointRouteId
+            ? template.routeConnections.find(
+                (route) => route.id === template.activePointRouteId,
+              ) ?? null
+            : null;
+        const activePlannedRoute = activePointRoute
+          ? template.plannedPointRoutes[activePointRoute.id] ?? null
+          : null;
+
+        isTrackingLocationRef.current = false;
+        clearLocationWatch();
+        setMarkers(template.markers);
+        setSelectedMarkerId(selectedMarkerId);
+        setCity(template.city);
+        setPointRoute(activePointRoute);
+        setRouteConnections(template.routeConnections);
+        setPlannedPointRoutes(template.plannedPointRoutes);
+        setRouteStyles(template.routeStyles);
+        setTransportMode(activePlannedRoute?.mode ?? template.transportMode);
+        setSelectedRoutePlanId(
+          activePlannedRoute?.planId ?? template.selectedRoutePlanId,
+        );
+        setRouteConnectionSourceId(null);
+        setIsRouteSelected(Boolean(activePointRoute));
+        setLocationRouteTargetId(null);
+        setIsLocated(false);
+        setUserLocation(null);
+        setLocationStatus("idle");
+        setLocationMessage("定位未开启");
+        setActiveWhiteboardBrush(template.whiteboard.activeBrush);
+        setActiveWhiteboardColor(template.whiteboard.activeColor);
+        setActiveWhiteboardTool(template.whiteboard.activeTool);
+        setWhiteboardElements(template.whiteboard.elements);
+        setWhiteboardWatermark(template.whiteboard.watermark);
+        setMapViewportSnapshot(template.viewport);
+        setRoutePlanning(
+          activePlannedRoute
+            ? {
+                key: activePlannedRoute.planningKey,
+                message: activePlannedRoute.result.message,
+                result: activePlannedRoute.result,
+                status: "ready",
+              }
+            : {
+                key: "",
+                message: "等待地图加载完成",
+                result: null,
+                status: "idle",
+              },
+        );
+        setRouteFocusVersion((currentVersion) => currentVersion + 1);
+        setWhiteboardViewportVersion((currentVersion) => currentVersion + 1);
+        setImportExportView("import");
+        openPanelMode("import-export");
+
+        window.setTimeout(() => {
+          if (template.viewport) {
+            window.map?.setViewport?.(template.viewport);
+            setMapViewportSnapshot(template.viewport);
+            setWhiteboardViewportVersion((currentVersion) => currentVersion + 1);
+            return;
+          }
+
+          window.map?.fitView({ padding: mapViewportPadding });
+          setMapViewportSnapshot(getCurrentMapViewport());
+        }, 80);
+
+        return {
+          ok: true,
+          message: `已导入 ${template.markers.length} 个点位、${template.routeConnections.length} 条线路和 ${template.whiteboard.elements.length} 个白板对象`,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Error && error.message
+              ? error.message
+              : "导入失败，请检查模板内容",
+        };
+      }
+    },
+    [clearLocationWatch, mapViewportPadding, openPanelMode],
+  );
+
+  const handleMapReadyChange = useCallback((ready: boolean) => {
+    setMapReadyVersion((currentVersion) => (ready ? currentVersion + 1 : 0));
+    setMapViewportSnapshot(ready ? getCurrentMapViewport() : null);
+  }, []);
+
+  const handleMapViewportChange = useCallback(() => {
+    setWhiteboardViewportVersion((currentVersion) => currentVersion + 1);
+    setMapViewportSnapshot(getCurrentMapViewport());
+  }, []);
+
+  const handleWhiteboardWatermarkChange = useCallback(
+    (updates: Partial<WhiteboardWatermarkConfig>) => {
+      setWhiteboardWatermark((currentConfig) => ({
+        ...currentConfig,
+        ...updates,
+      }));
+    },
+    [],
+  );
 
   const handleLocationSuccess = useCallback(
     (position: GeolocationPosition) => {
@@ -1098,6 +1323,7 @@ export default function MapEditor() {
       <MapLayer
         focusedRouteId={focusedRouteId}
         markers={markers}
+        onViewportChange={handleMapViewportChange}
         onReadyChange={handleMapReadyChange}
         onMarkerMove={handleMarkerMove}
         onRouteClick={handleRouteClick}
@@ -1110,24 +1336,42 @@ export default function MapEditor() {
         viewportPadding={mapViewportPadding}
       />
 
-      <div className="whiteboard-layer" aria-hidden="true" />
+      <WhiteboardLayer
+        activeBrush={activeWhiteboardBrush}
+        activeColor={activeWhiteboardColor}
+        activeTool={activeWhiteboardTool}
+        elements={whiteboardElements}
+        onColorChange={setActiveWhiteboardColor}
+        onElementsChange={setWhiteboardElements}
+        watermark={whiteboardWatermark}
+        viewportVersion={whiteboardViewportVersion}
+      />
 
       <FloatingActions
         isLocated={isLocated}
         locationMessage={resolvedLocationMessage}
         locationStatus={locationStatus}
+        onExport={handleOpenExportPanel}
+        onImport={handleOpenImportPanel}
         onLocate={handleToggleLocation}
       />
 
       <WhiteboardToolbar
+        activeBrush={activeWhiteboardBrush}
+        activeColor={activeWhiteboardColor}
         activeTool={activeWhiteboardTool}
+        onBrushChange={setActiveWhiteboardBrush}
+        onColorChange={setActiveWhiteboardColor}
         onToolChange={setActiveWhiteboardTool}
       />
 
       <EditorPanel
         activePointRouteId={activePointRouteId}
+        importExportView={importExportView}
         isCollapsed={isPanelCollapsed}
         locationRouteTarget={locationRouteTarget}
+        mapExportTemplate={mapExportTemplate}
+        mapShareCode={mapShareCode}
         marker={selectedMarker}
         markerNumber={selectedMarkerNumber}
         markerNumberById={markerNumberById}
@@ -1137,6 +1381,9 @@ export default function MapEditor() {
         onCancelRouteConnection={handleCancelRouteConnection}
         onCreateRouteConnection={handleCreateRouteConnection}
         onDeleteRoute={handleDeleteRoute}
+        onDownloadMapTemplate={handleDownloadMapTemplate}
+        onImportExportViewChange={setImportExportView}
+        onImportMapTemplate={handleImportMapTemplate}
         onSelectMarker={handleSelectMarkerFromRouteDetail}
         onSelectPointRoute={handleSelectPointRoute}
         onSelectRoutePlan={handleSelectRoutePlan}
@@ -1144,6 +1391,7 @@ export default function MapEditor() {
         onStartRouteConnection={handleStartRouteConnection}
         onTransportModeChange={setTransportMode}
         onUpdateMarker={updateSelectedMarker}
+        onWhiteboardWatermarkChange={handleWhiteboardWatermarkChange}
         pointRoute={pointRouteEndpoints}
         routePlan={routePlanForCurrentRoute}
         routePlanningMessage={routePlanningMessageForCurrentRoute}
@@ -1155,6 +1403,8 @@ export default function MapEditor() {
         selectedRoutePlanId={resolvedSelectedRoutePlanId}
         transportMode={transportMode}
         userLocation={userLocation}
+        whiteboardElementCount={whiteboardElements.length}
+        whiteboardWatermark={whiteboardWatermark}
       />
     </main>
   );

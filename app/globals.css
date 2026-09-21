@@ -97,7 +97,222 @@ button:disabled {
     linear-gradient(rgba(17, 24, 21, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(17, 24, 21, 0.045) 1px, transparent 1px);
   background-size: 28px 28px;
-  opacity: 0.28;
+}
+
+.whiteboard-layer canvas {
+  outline: none;
+}
+
+.whiteboard-layer-interactive {
+  pointer-events: auto;
+}
+
+.whiteboard-layer-select {
+  cursor: default;
+}
+
+.whiteboard-layer-pen {
+  cursor: crosshair;
+}
+
+.whiteboard-layer-text {
+  cursor: text;
+}
+
+.whiteboard-layer-image {
+  cursor: copy;
+}
+
+.whiteboard-layer-eyedropper {
+  cursor: crosshair;
+}
+
+.whiteboard-layer-bucket {
+  cursor: cell;
+}
+
+.whiteboard-layer-erase {
+  cursor: not-allowed;
+}
+
+.whiteboard-color-popover {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  display: grid;
+  gap: 8px;
+  width: 136px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--card) 95%, transparent);
+  box-shadow: 0 16px 36px rgba(17, 24, 21, 0.16);
+  padding: 8px;
+  backdrop-filter: blur(12px);
+}
+
+.whiteboard-color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.whiteboard-color-button {
+  aspect-ratio: 1;
+  width: 100%;
+  border: 2px solid var(--card);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 90%, transparent);
+}
+
+.whiteboard-color-button-active {
+  box-shadow:
+    0 0 0 2px var(--card),
+    0 0 0 4px var(--ring);
+}
+
+.whiteboard-custom-color-field {
+  position: relative;
+  display: block;
+  height: 28px;
+  overflow: hidden;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(45deg, rgba(17, 24, 21, 0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(17, 24, 21, 0.08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(17, 24, 21, 0.08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(17, 24, 21, 0.08) 75%);
+  background-position:
+    0 0,
+    0 5px,
+    5px -5px,
+    -5px 0;
+  background-size: 10px 10px;
+  cursor: pointer;
+}
+
+.whiteboard-custom-color-preview {
+  position: absolute;
+  inset: 4px;
+  border-radius: calc(var(--radius-sm) - 2px);
+}
+
+.whiteboard-custom-color-field input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.whiteboard-toolbar-color-swatch {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--card) 88%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+.whiteboard-text-edit-overlay {
+  position: absolute;
+  z-index: 2;
+  min-width: 80px;
+}
+
+.whiteboard-text-toolbar {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 40px));
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  box-shadow: 0 10px 30px rgba(17, 24, 21, 0.14);
+  padding: 4px;
+  backdrop-filter: blur(10px);
+}
+
+.whiteboard-text-size-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.whiteboard-text-font-select,
+.whiteboard-text-weight-select {
+  height: 32px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  padding: 0 8px;
+  color: var(--foreground);
+  font-size: 12px;
+  outline: none;
+}
+
+.whiteboard-text-font-select {
+  min-width: 120px;
+}
+
+.whiteboard-text-weight-select {
+  min-width: 76px;
+}
+
+.whiteboard-text-size-input {
+  width: 48px;
+  height: 32px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+}
+
+.whiteboard-text-editor {
+  display: block;
+  min-width: 80px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--ring) 72%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: 0 10px 30px rgba(17, 24, 21, 0.14);
+  padding: 6px;
+  font-family: Arial, Helvetica, sans-serif;
+  outline: none;
+  backdrop-filter: blur(8px);
+}
+
+.import-export-textarea {
+  display: block;
+  min-height: 150px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  padding: 9px 10px;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  outline: none;
+  scrollbar-width: thin;
+}
+
+.import-export-textarea:focus-visible {
+  border-color: color-mix(in srgb, var(--ring) 72%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 16%, transparent);
 }
 
 .map-status-card {

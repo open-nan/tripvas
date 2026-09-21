@@ -10,7 +10,7 @@ import type { LocationStatus } from "./map-editor-types";
 /**
  * 左上角浮动操作区的组件接口。
  *
- * 当前承载定位开关、导入、导出入口；只有定位能力接入了真实状态，其余按钮仍是 UI 入口。
+ * 当前承载定位开关、导入和导出入口；导入导出按钮会打开左侧工具面板对应视图。
  */
 type FloatingActionsProps = {
   /** 定位开关是否已经开启。 */
@@ -19,6 +19,10 @@ type FloatingActionsProps = {
   locationMessage: string;
   /** 当前定位状态，决定提示条样式和可访问性角色。 */
   locationStatus: LocationStatus;
+  /** 点击导出按钮时触发，用于打开导入导出面板的导出视图。 */
+  onExport: () => void;
+  /** 点击导入按钮时触发，用于打开导入导出面板的导入视图。 */
+  onImport: () => void;
   /** 点击定位按钮时触发，由上层负责启动或停止浏览器定位。 */
   onLocate: () => void;
 };
@@ -27,6 +31,8 @@ export function FloatingActions({
   isLocated,
   locationMessage,
   locationStatus,
+  onExport,
+  onImport,
   onLocate,
 }: FloatingActionsProps) {
   const shouldShowLocationStatus = locationStatus !== "idle";
@@ -49,10 +55,22 @@ export function FloatingActions({
           <LocateFixed className="size-4" />
         </Button>
         <Separator className="h-5" orientation="vertical" />
-        <Button aria-label="导入" size="icon" title="导入" variant="ghost">
+        <Button
+          aria-label="导入地图模板"
+          onClick={onImport}
+          size="icon"
+          title="导入地图模板"
+          variant="ghost"
+        >
           <Upload className="size-4" />
         </Button>
-        <Button aria-label="导出 PNG" size="icon" title="导出 PNG" variant="ghost">
+        <Button
+          aria-label="导出地图模板"
+          onClick={onExport}
+          size="icon"
+          title="导出地图模板"
+          variant="ghost"
+        >
           <Download className="size-4" />
         </Button>
       </div>

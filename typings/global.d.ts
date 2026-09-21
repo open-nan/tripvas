@@ -17,6 +17,14 @@ declare global {
   type NanMapLngLat = [longitude: number, latitude: number];
 
   /**
+   * 地图容器内的屏幕像素坐标。
+   *
+   * 顺序为 [x, y]，原点是高德地图容器左上角。白板层会用它在 Konva 画布
+   * 和高德地图经纬度之间做坐标投影。
+   */
+  type NanMapContainerPoint = [x: number, y: number];
+
+  /**
    * 地图自适应视野时的内边距。
    *
    * 顺序与高德 setFitView padding 保持一致：[上, 右, 下, 左]，单位是像素。
@@ -28,6 +36,18 @@ declare global {
     bottom: number,
     left: number,
   ];
+
+  /**
+   * 当前地图视野快照。
+   *
+   * 用于导入导出模块保存和恢复地图中心与缩放，不包含点位、路线或白板对象。
+   */
+  type NanMapViewportSnapshot = {
+    /** 当前地图中心点。 */
+    center: NanMapLngLat;
+    /** 当前地图缩放级别。 */
+    zoom: number;
+  };
 
   /**
    * React 传给地图桥接层的点位数据。
@@ -239,6 +259,8 @@ declare global {
     onMapClick?: (lngLat: NanMapLngLat) => void;
     /** 路线覆盖物点击回调，用于打开或聚焦指定线路详情。 */
     onRouteClick?: (routeId?: string) => void;
+    /** 地图平移或缩放后的回调，用于让白板层重新投影经纬度坐标。 */
+    onViewportChange?: () => void;
   };
 
   /**
@@ -337,6 +359,10 @@ declare global {
   type NanMapBridge = {
     /** 清空当前由高德路线服务绘制的路线覆盖物。 */
     clearRoute?: () => void;
+    /** 将地图容器像素坐标转换成高德经纬度。 */
+    containerToLngLat?: (
+      point: NanMapContainerPoint,
+    ) => NanMapLngLat | null;
     /**
      * 创建高德地图实例。
      *
@@ -365,8 +391,14 @@ declare global {
     getCurrentCity?: () => Promise<string>;
     /** 获取当前高德地图实例；仅用于桥接层外部确有必要的扩展场景。 */
     getInstance?: () => unknown;
+    /** 获取当前地图中心和缩放级别，用于导出模板。 */
+    getViewport?: () => NanMapViewportSnapshot | null;
     /** 加载并缓存高德 JSAPI 运行时。 */
     load: () => Promise<unknown>;
+    /** 将高德经纬度转换成地图容器像素坐标。 */
+    lngLatToContainer?: (
+      lngLat: NanMapLngLat,
+    ) => NanMapContainerPoint | null;
     /** 使用高德路线服务规划路线，并返回规范化后的方案数据。 */
     planRoute?: (
       options: NanMapPlanRouteOptions,
@@ -396,6 +428,8 @@ declare global {
       lngLat?: NanMapLngLat | null,
       options?: NanMapUserLocationOptions,
     ) => void;
+    /** 按导入模板恢复地图中心和缩放级别。 */
+    setViewport?: (viewport: NanMapViewportSnapshot) => void;
   };
 
   /**

@@ -29,6 +29,8 @@ type MapLayerProps = {
   onMapClick?: (lngLat: NanMapLngLat) => void;
   /** 地图桥接层加载或销毁后的就绪状态回调。 */
   onReadyChange?: (ready: boolean) => void;
+  /** 地图平移或缩放后触发，用于通知白板层重新投影经纬度对象。 */
+  onViewportChange?: () => void;
   /** 当前路线的视野适配 key；变化时会触发地图重新 fitView。 */
   routeFitKey?: string | null;
   /** 当前需要保留在地图上的全部已规划路线。 */
@@ -57,7 +59,7 @@ type MapLayerStatusProps = {
   message: string;
 };
 
-const MAP_SCRIPT_SRC = "/map.js?v=route-focus-20260902";
+const MAP_SCRIPT_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/map.js?v=import-export-20260909`;
 const SHANGHAI_CENTER: NanMapLngLat = [121.4737, 31.2304];
 const DEFAULT_VIEWPORT_PADDING: MapViewportPadding = [96, 128, 96, 456];
 
@@ -75,6 +77,7 @@ export function MapLayer({
   onReadyChange,
   onRouteClick,
   onSelectMarker,
+  onViewportChange,
   userLocation = null,
   userLocationAccuracy,
   viewportPadding = DEFAULT_VIEWPORT_PADDING,
@@ -90,6 +93,7 @@ export function MapLayer({
   const onReadyChangeRef = useRef(onReadyChange);
   const onRouteClickRef = useRef(onRouteClick);
   const onSelectMarkerRef = useRef(onSelectMarker);
+  const onViewportChangeRef = useRef(onViewportChange);
   const initialCenterRef = useRef(markers[0]?.lngLat ?? SHANGHAI_CENTER);
   const [status, setStatus] = useState<"error" | "loading" | "ready">(
     "loading",
@@ -102,7 +106,15 @@ export function MapLayer({
     onReadyChangeRef.current = onReadyChange;
     onRouteClickRef.current = onRouteClick;
     onSelectMarkerRef.current = onSelectMarker;
-  }, [onMapClick, onMarkerMove, onReadyChange, onRouteClick, onSelectMarker]);
+    onViewportChangeRef.current = onViewportChange;
+  }, [
+    onMapClick,
+    onMarkerMove,
+    onReadyChange,
+    onRouteClick,
+    onSelectMarker,
+    onViewportChange,
+  ]);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -181,6 +193,7 @@ export function MapLayer({
           ? (lngLat) => currentMapClickHandler(lngLat)
           : undefined,
         onRouteClick: (routeId) => onRouteClickRef.current(routeId),
+        onViewportChange: () => onViewportChangeRef.current?.(),
       });
       mapBridge.setMarkers(markers, {
         onMarkerDragEnd: (markerId, lngLat) =>
@@ -295,6 +308,7 @@ function ensureMapScript() {
     }
 
     const script = document.createElement("script");
+    script.type = "module";
     script.async = true;
     script.dataset.nanMap = "true";
     script.src = MAP_SCRIPT_SRC;

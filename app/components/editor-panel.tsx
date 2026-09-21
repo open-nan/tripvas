@@ -8,10 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { ImportExportDetail } from "./import-export-detail";
 import { MarkerDetail } from "./marker-detail";
 import { panelTitles } from "./map-editor-data";
 import type {
+  ImportExportPanelView,
+  MapExportTemplate,
   MapRoutePlanResult,
+  MapTemplateImportResult,
   Marker,
   PanelMode,
   PointRouteEndpoints,
@@ -19,6 +23,7 @@ import type {
   RoutePlanningStatus,
   TransportMode,
   UserLocation,
+  WhiteboardWatermarkConfig,
 } from "./map-editor-types";
 import { RouteDetail } from "./route-detail";
 
@@ -35,6 +40,12 @@ type EditorPanelProps = {
   isCollapsed: boolean;
   /** 定位路线的目标点位；为空表示当前没有从用户位置发起的路线。 */
   locationRouteTarget: Marker | null;
+  /** 导入导出面板当前视图。 */
+  importExportView: ImportExportPanelView;
+  /** 当前可导出的地图模板。 */
+  mapExportTemplate: MapExportTemplate;
+  /** 当前地图模板对应的 P2P 分享码。 */
+  mapShareCode: string;
   /** 当前选中的点位，也是点位详情面板的编辑对象。 */
   marker: Marker;
   /** 当前选中点位在地图点位列表里的动态序号。 */
@@ -53,6 +64,12 @@ type EditorPanelProps = {
   onCreateRouteConnection: (targetMarkerId: string) => void;
   /** 删除当前正在查看或编辑的路线，并清空地图上的路线覆盖物。 */
   onDeleteRoute: () => void;
+  /** 下载当前地图模板 JSON。 */
+  onDownloadMapTemplate: () => void;
+  /** 切换导入导出面板的导出或导入视图。 */
+  onImportExportViewChange: (view: ImportExportPanelView) => void;
+  /** 从 JSON 或 P2P 分享码导入地图模板。 */
+  onImportMapTemplate: (source: string) => MapTemplateImportResult;
   /** 选择某个点位，通常从路线端点或点位列表触发。 */
   onSelectMarker: (id: string) => void;
   /** 在线路弹框中选择某条已保存线路，并切换到该线路的编辑状态。 */
@@ -67,6 +84,10 @@ type EditorPanelProps = {
   onTransportModeChange: (mode: TransportMode) => void;
   /** 更新当前点位的局部字段。 */
   onUpdateMarker: (updates: Partial<Marker>) => void;
+  /** 更新白板水印配置，用于图层面板控制 Konva 水印显示。 */
+  onWhiteboardWatermarkChange: (
+    updates: Partial<WhiteboardWatermarkConfig>,
+  ) => void;
   /** 当前点到点路线端点；为空时路线面板展示空态或定位路线。 */
   pointRoute: PointRouteEndpoints | null;
   /** 高德路线规划返回的当前路线方案；为空表示尚未规划成功。 */
@@ -89,6 +110,10 @@ type EditorPanelProps = {
   transportMode: TransportMode;
   /** 浏览器定位得到的用户当前位置；为空表示尚未定位或定位已关闭。 */
   userLocation: UserLocation | null;
+  /** 当前白板对象数量，用于图层面板展示对象状态。 */
+  whiteboardElementCount: number;
+  /** 当前白板水印配置。 */
+  whiteboardWatermark: WhiteboardWatermarkConfig;
 };
 
 /**
@@ -111,14 +136,35 @@ type ToolPanelActionBarProps = {
 type LayerToggleProps = {
   /** 开关默认是否选中。 */
   checked: boolean;
+  /** 禁用后开关只展示状态，不可交互。 */
+  disabled?: boolean;
   /** 开关展示文案。 */
   label: string;
+  /** 开关变化回调；不传时作为只读展示项。 */
+  onCheckedChange?: (checked: boolean) => void;
+};
+
+/**
+ * 图层面板的组件接口。
+ *
+ * 当前主要接入白板水印设置，地图图层开关仍作为后续地图能力扩展入口。
+ */
+type LayerDetailProps = {
+  /** 当前白板对象数量。 */
+  elementCount: number;
+  /** 更新白板水印配置。 */
+  onWatermarkChange: (updates: Partial<WhiteboardWatermarkConfig>) => void;
+  /** 当前白板水印配置。 */
+  watermark: WhiteboardWatermarkConfig;
 };
 
 export function EditorPanel({
   activePointRouteId,
   isCollapsed,
   locationRouteTarget,
+  importExportView,
+  mapExportTemplate,
+  mapShareCode,
   marker,
   markerNumber,
   markerNumberById,
@@ -128,6 +174,9 @@ export function EditorPanel({
   onCancelRouteConnection,
   onCreateRouteConnection,
   onDeleteRoute,
+  onDownloadMapTemplate,
+  onImportExportViewChange,
+  onImportMapTemplate,
   onSelectMarker,
   onSelectPointRoute,
   onSelectRoutePlan,
@@ -135,6 +184,7 @@ export function EditorPanel({
   onStartRouteConnection,
   onTransportModeChange,
   onUpdateMarker,
+  onWhiteboardWatermarkChange,
   pointRoute,
   routePlan,
   routePlanningMessage,
@@ -146,6 +196,8 @@ export function EditorPanel({
   selectedRoutePlanId,
   transportMode,
   userLocation,
+  whiteboardElementCount,
+  whiteboardWatermark,
 }: EditorPanelProps) {
   const [toolPanelActionSlot, setToolPanelActionSlot] =
     useState<ReactNode[]>([]);
@@ -234,7 +286,24 @@ export function EditorPanel({
                 />
               )}
 
-              {mode === "layers" && <LayerDetail />}
+              {mode === "layers" && (
+                <LayerDetail
+                  elementCount={whiteboardElementCount}
+                  watermark={whiteboardWatermark}
+                  onWatermarkChange={onWhiteboardWatermarkChange}
+                />
+              )}
+
+              {mode === "import-export" && (
+                <ImportExportDetail
+                  shareCode={mapShareCode}
+                  template={mapExportTemplate}
+                  view={importExportView}
+                  onDownloadTemplate={onDownloadMapTemplate}
+                  onImportSource={onImportMapTemplate}
+                  onViewChange={onImportExportViewChange}
+                />
+              )}
             </CardContent>
           </>
         )}
@@ -269,13 +338,11 @@ function ToolPanelActionBar({
   );
 }
 
-/**
- * 图层原型面板。
- *
- * 当前没有外部 props，只展示静态图层开关和白板层提示；后续接入真实图层状态时
- * 再提取独立 props 接口。
- */
-function LayerDetail() {
+function LayerDetail({
+  elementCount,
+  watermark,
+  onWatermarkChange,
+}: LayerDetailProps) {
   return (
     <>
       <section className="space-y-2">
@@ -288,24 +355,66 @@ function LayerDetail() {
       <Separator />
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="watermark">白板水印</Label>
-          <Badge variant="outline">38%</Badge>
-        </div>
-        <input
-          className="h-2 w-full accent-primary"
-          defaultValue={38}
-          id="watermark"
-          max={100}
-          min={0}
-          type="range"
+        <LayerToggle
+          checked={watermark.enabled}
+          label="白板水印"
+          onCheckedChange={(checked) =>
+            onWatermarkChange({ enabled: checked })
+          }
         />
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="watermark-size">水印大小</Label>
+            <Badge variant="outline">{watermark.size}px</Badge>
+          </div>
+          <input
+            className="h-2 w-full accent-primary disabled:opacity-40"
+            disabled={!watermark.enabled}
+            id="watermark-size"
+            max={72}
+            min={16}
+            type="range"
+            value={watermark.size}
+            onChange={(event) =>
+              onWatermarkChange({ size: Number(event.target.value) })
+            }
+          />
+        </div>
+
+        <LayerToggle
+          checked={watermark.tiled}
+          disabled={!watermark.enabled}
+          label="水印平铺"
+          onCheckedChange={(checked) =>
+            onWatermarkChange({ tiled: checked })
+          }
+        />
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="watermark-spacing">平铺间距</Label>
+            <Badge variant="outline">{watermark.spacing}px</Badge>
+          </div>
+          <input
+            className="h-2 w-full accent-primary disabled:opacity-40"
+            disabled={!watermark.enabled || !watermark.tiled}
+            id="watermark-spacing"
+            max={360}
+            min={140}
+            type="range"
+            value={watermark.spacing}
+            onChange={(event) =>
+              onWatermarkChange({ spacing: Number(event.target.value) })
+            }
+          />
+        </div>
       </section>
 
       <section className="rounded-lg border border-dashed border-border bg-background/70 p-3">
-        <div className="text-sm font-semibold">白板层</div>
+        <div className="text-sm font-semibold">白板对象</div>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          右侧工具栏会控制白板对象，地图点位仍通过当前面板编辑。
+          {elementCount} 个对象
         </p>
       </section>
     </>
@@ -314,15 +423,20 @@ function LayerDetail() {
 
 function LayerToggle({
   checked,
+  disabled = false,
   label,
+  onCheckedChange,
 }: LayerToggleProps) {
   return (
     <label className="flex h-11 items-center justify-between rounded-lg border border-border bg-background/70 px-3 text-sm">
       <span>{label}</span>
       <input
         className="size-4 accent-primary"
-        defaultChecked={checked}
+        checked={checked}
+        disabled={disabled}
+        readOnly={!onCheckedChange}
         type="checkbox"
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
       />
     </label>
   );

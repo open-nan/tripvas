@@ -3,13 +3,18 @@ import {
   Bike,
   Car,
   Eraser,
+  FileJson,
   Footprints,
+  Highlighter,
   ImagePlus,
   Layers,
   MapPin,
   MousePointer2,
   Move,
+  PaintBucket,
+  PencilLine,
   PenLine,
+  Pipette,
   Route,
   TrainFront,
   Type as TypeIcon,
@@ -21,6 +26,7 @@ import type {
   MarkerKind,
   PanelMode,
   TransportMode,
+  WhiteboardBrush,
   WhiteboardTool,
 } from "./map-editor-types";
 
@@ -67,6 +73,7 @@ export const panelModes: Array<{ id: PanelMode; label: string; icon: LucideIcon 
   { id: "marker", label: "点位", icon: MapPin },
   { id: "route", label: "路线", icon: Route },
   { id: "layers", label: "图层", icon: Layers },
+  { id: "import-export", label: "导入导出", icon: FileJson },
 ];
 
 export const whiteboardTools: Array<{
@@ -79,7 +86,36 @@ export const whiteboardTools: Array<{
   { id: "pen", label: "画笔", icon: PenLine },
   { id: "text", label: "文字", icon: TypeIcon },
   { id: "image", label: "图片", icon: ImagePlus },
+  { id: "eyedropper", label: "吸色", icon: Pipette },
+  { id: "bucket", label: "填充", icon: PaintBucket },
   { id: "erase", label: "擦除", icon: Eraser },
+];
+
+export const defaultWhiteboardColor = "#0f766e";
+
+export const whiteboardColors = [
+  "#111815",
+  "#ffffff",
+  "#64748b",
+  "#0f766e",
+  "#10b981",
+  "#0284c7",
+  "#2563eb",
+  "#7c3aed",
+  "#be123c",
+  "#dc2626",
+  "#d97706",
+  "#facc15",
+];
+
+export const whiteboardBrushes: Array<{
+  id: WhiteboardBrush;
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { id: "fountain", label: "钢笔", icon: PenLine },
+  { id: "pencil", label: "铅笔", icon: PencilLine },
+  { id: "crayon", label: "蜡笔", icon: Highlighter },
 ];
 
 export const transportTabs: Array<{
@@ -118,6 +154,7 @@ export const panelTitles: Record<PanelMode, string> = {
   marker: "点位编辑",
   route: "路线规划",
   layers: "地图图层",
+  "import-export": "导入导出",
 };
 
 export const geolocationOptions: PositionOptions = {

@@ -113,6 +113,10 @@
   var routeClickGuard = false;
   // React 注入的路线点击回调，用于打开/切换指定路线详情面板。
   var routeClickHandler;
+  // React 注入的地图视图变化回调，用于驱动白板层重新投影坐标。
+  var mapViewportChangeHandler;
+  // 地图 move/zoom 事件可能高频触发，用 requestAnimationFrame 合并通知。
+  var mapViewportChangeFrame = 0;
   // 当前绘制在地图上的路线覆盖物集合，主要由 setRoutes() 统一维护。
   var routeRenderers = [];
   // 当前可参与 fitView 的路线覆盖物，不包含选中高亮 halo 这类纯视觉层。
@@ -484,6 +488,7 @@
   function setInteractionHandlers(handlers) {
     mapClickHandler = handlers && handlers.onMapClick;
     routeClickHandler = handlers && handlers.onRouteClick;
+    mapViewportChangeHandler = handlers && handlers.onViewportChange;
   }
 
   /**
@@ -1045,6 +1050,10 @@
     }
 
     mapInstance.on("click", handleMapClick);
+    mapInstance.on("mapmove", handleMapViewportChange);
+    mapInstance.on("moveend", handleMapViewportChange);
+    mapInstance.on("zoomchange", handleMapViewportChange);
+    mapInstance.on("zoomend", handleMapViewportChange);
     mapClickEventBound = true;
   }
 
@@ -1054,12 +1063,22 @@
   function unbindMapEvents() {
     if (mapInstance && mapClickEventBound && typeof mapInstance.off === "function") {
       mapInstance.off("click", handleMapClick);
+      mapInstance.off("mapmove", handleMapViewportChange);
+      mapInstance.off("moveend", handleMapViewportChange);
+      mapInstance.off("zoomchange", handleMapViewportChange);
+      mapInstance.off("zoomend", handleMapViewportChange);
     }
 
     mapClickEventBound = false;
     mapClickHandler = undefined;
     routeClickGuard = false;
     routeClickHandler = undefined;
+    mapViewportChangeHandler = undefined;
+
+    if (mapViewportChangeFrame) {
+      window.cancelAnimationFrame(mapViewportChangeFrame);
+      mapViewportChangeFrame = 0;
+    }
   }
 
   /**
@@ -1093,6 +1112,121 @@
 
     if (typeof routeClickHandler === "function") {
       routeClickHandler(routeId);
+    }
+  }
+
+  /**
+   * 地图视图变化处理。
+   *
+   * 白板对象保存的是经纬度，地图平移/缩放后需要通知 React 重新换算到 Konva
+   * 屏幕坐标。这里合并到下一帧，避免高频地图事件导致 React 过度渲染。
+   */
+  function handleMapViewportChange() {
+    if (
+      typeof mapViewportChangeHandler !== "function" ||
+      mapViewportChangeFrame
+    ) {
+      return;
+    }
+
+    mapViewportChangeFrame = window.requestAnimationFrame(function () {
+      mapViewportChangeFrame = 0;
+
+      if (typeof mapViewportChangeHandler === "function") {
+        mapViewportChangeHandler();
+      }
+    });
+  }
+
+  /**
+   * 将高德经纬度转换为地图容器像素坐标。
+   */
+  function lngLatToContainer(lngLat) {
+    if (
+      !mapInstance ||
+      !isLngLat(lngLat) ||
+      typeof mapInstance.lngLatToContainer !== "function"
+    ) {
+      return null;
+    }
+
+    return toContainerPointArray(mapInstance.lngLatToContainer(lngLat));
+  }
+
+  /**
+   * 将地图容器像素坐标转换为高德经纬度。
+   */
+  function containerToLngLat(point) {
+    if (
+      !mapInstance ||
+      !isContainerPoint(point) ||
+      typeof mapInstance.containerToLngLat !== "function"
+    ) {
+      return null;
+    }
+
+    var pixel =
+      AMapRuntime && AMapRuntime.Pixel
+        ? new AMapRuntime.Pixel(point[0], point[1])
+        : point;
+
+    return toLngLatArray(mapInstance.containerToLngLat(pixel));
+  }
+
+  /**
+   * 获取当前地图中心和缩放级别。
+   *
+   * 导入导出模块用它保存当前视野；这里不包含覆盖物数据，点位、路线和白板对象
+   * 仍由 React 状态模板独立保存。
+   */
+  function getViewport() {
+    if (!mapInstance) {
+      return null;
+    }
+
+    var center =
+      typeof mapInstance.getCenter === "function"
+        ? toLngLatArray(mapInstance.getCenter())
+        : null;
+    var zoom =
+      typeof mapInstance.getZoom === "function" ? mapInstance.getZoom() : null;
+
+    if (!center || !isFiniteNumber(zoom)) {
+      return null;
+    }
+
+    return {
+      center: center,
+      zoom: Math.max(3, Math.min(Number(zoom.toFixed(2)), 20)),
+    };
+  }
+
+  /**
+   * 恢复导入模板里的地图视野。
+   */
+  function setViewport(viewport) {
+    if (!mapInstance || !viewport || !isLngLat(viewport.center)) {
+      return;
+    }
+
+    var zoom = isFiniteNumber(viewport.zoom)
+      ? Math.max(3, Math.min(Number(viewport.zoom), 20))
+      : undefined;
+
+    if (
+      zoom !== undefined &&
+      typeof mapInstance.setZoomAndCenter === "function"
+    ) {
+      mapInstance.setZoomAndCenter(zoom, viewport.center);
+      return;
+    }
+
+    if (zoom !== undefined && typeof mapInstance.setZoom === "function") {
+      mapInstance.setZoom(zoom);
+    }
+
+    if (typeof mapInstance.setCenter === "function") {
+      mapInstance.setCenter(viewport.center);
     }
   }
 
@@ -2995,10 +3129,59 @@
   }
 
   /**
+   * 将高德 Pixel 或普通点对象转换成 [x, y]。
+   */
+  function toContainerPointArray(value) {
+    if (Array.isArray(value) && value.length >= 2) {
+      return [roundContainerPoint(value[0]), roundContainerPoint(value[1])];
+    }
+
+    if (
+      value &&
+      typeof value.getX === "function" &&
+      typeof value.getY === "function"
+    ) {
+      return [
+        roundContainerPoint(value.getX()),
+        roundContainerPoint(value.getY()),
+      ];
+    }
+
+    if (
+      value &&
+      typeof value.x === "number" &&
+      typeof value.y === "number"
+    ) {
+      return [roundContainerPoint(value.x), roundContainerPoint(value.y)];
+    }
+
+    return null;
+  }
+
+  /**
+   * 校验地图容器像素坐标。
+   */
+  function isContainerPoint(value) {
+    return (
+      Array.isArray(value) &&
+      value.length >= 2 &&
+      isFiniteNumber(value[0]) &&
+      isFiniteNumber(value[1])
+    );
+  }
+
+  /**
    * 经纬度精度收敛。
    */
   function roundLngLat(value) {
     return Number(value.toFixed(6));
+  }
+
+  /**
+   * 像素坐标精度收敛，避免白板重投影时产生无意义的小数抖动。
+   */
+  function roundContainerPoint(value) {
+    return Number(value.toFixed(2));
   }
 
   /**
@@ -3022,6 +3205,7 @@
    * 访问这些方法。新增地图能力时优先在这里补方法，再在 TypeScript 类型里同步声明。
    */
   window.map = {
+    containerToLngLat: containerToLngLat,
     create: create,
     destroy: destroy,
     fitView: fitView,
@@ -3035,7 +3219,9 @@
     getInstance: function () {
       return mapInstance;
     },
+    getViewport: getViewport,
     load: load,
+    lngLatToContainer: lngLatToContainer,
     planRoute: planRoute,
     searchPlaces: searchPlaces,
     clearRoute: clearRoute,
@@ -3045,5 +3231,6 @@
     setRoute: setRoute,
     setRoutes: setRoutes,
     setUserLocation: setUserLocation,
+    setViewport: setViewport,
   };
 })();

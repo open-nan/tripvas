@@ -1,0 +1,111 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout JS VM hardener
+        uses: actions/checkout@v4
+        with:
+          repository: open-nan/js_vm
+          ref: 6514932758469b35eae40779b541db4400542e7e
+          path: .js-vm
+          sparse-checkout: |
+            Cargo.toml
+            Cargo.lock
+            crates
+            pkg
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Configure site base path
+        shell: bash
+        run: |
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          if [[ "$repository_name" == *.github.io ]]; then
+            base_path=""
+          else
+            base_path="/$repository_name"
+          fi
+          echo "PAGES_BASE_PATH=$base_path" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_BASE_PATH=$base_path" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Install JS VM build tool
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack --locked --version 0.13.1
+
+      - name: Harden map.js with JS VM
+        shell: bash
+        run: |
+          mkdir -p .map-vm-input
+          cp out/map.js .map-vm-input/map.js
+
+          cargo run \
+            --manifest-path .js-vm/Cargo.toml \
+            --release \
+            -p js_vm_cli \
+            -- all --skip-opt -- \
+            "$GITHUB_WORKSPACE/.map-vm-input" \
+            --out "$GITHUB_WORKSPACE/.map-vm-output" \
+            --entry map.js \
+            --platform web \
+            --clean \
+            --no-static
+
+          rm "$GITHUB_WORKSPACE/.map-vm-output/map.bin.map"
+          cp -R "$GITHUB_WORKSPACE/.map-vm-output/." out/
+          test -f out/map.js
+          test -f out/map.bin
+          test -f out/js_vm_runtime_browser_bg.wasm
+          test ! -f out/map.bin.map
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
