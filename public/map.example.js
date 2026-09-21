@@ -13,10 +13,10 @@
    * 本地开发/后续加固方案处理，生产仍建议配合高德控制台域名白名单。
    */
   var AMAP_CONFIG = {
-    // 高德 Web JSAPI key。真实值只保存在本地 public/map.js，示例模板保持为空。
-    key: "",
+    // 构建时由 scripts/generate-map-config.mjs 注入，不要直接提交真实值。
+    key: "__GD_MAP_KEY__",
     // 高德安全密钥。Loader 加载前会写入 window._AMapSecurityConfig。
-    securityJsCode: "",
+    securityJsCode: "__GD_MAP_SECURITY__",
     // 高德 JSAPI 版本。当前桥接层按 2.0 的 Loader 和插件形态编写。
     version: "2.0",
     // 首屏需要的基础插件。路线和搜索函数里仍会二次 ensure，避免懒加载失败。

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
+    "prepare:map": "node scripts/generate-map-config.mjs",
     "start": "next start",
     "lint": "eslint"
   },

@@ -61,6 +61,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate map configuration
+        env:
+          GD_MAP_KEY: ${{ secrets.GD_MAP_KEY }}
+          GD_MAP_SECURITY: ${{ secrets.GD_MAP_SECURITY }}
+        run: npm run prepare:map
+
       - name: Build static site
         run: npm run build
 

@@ -35,10 +35,12 @@ npm run dev
 项目不会把真实高德配置提交到仓库。首次运行地图前，需要基于示例文件创建本地配置：
 
 ```bash
-cp public/map.example.js public/map.js
+GD_MAP_KEY="你的 Key" GD_MAP_SECURITY="你的安全密钥" npm run prepare:map
 ```
 
-然后在 `public/map.js` 中填写高德地图 `key` 和 `securityJsCode`。
+该命令会用环境变量替换 `public/map.example.js` 中的占位符并生成
+`public/map.js`。GitHub Pages 工作流会从 Actions Secrets
+`GD_MAP_KEY` 和 `GD_MAP_SECURITY` 自动执行同一生成步骤。
 
 注意：`public/map.js` 位于浏览器公开目录，不适合存放不可泄露的后端密钥。当前它只应作为本地开发桥接文件使用，生产环境需要重新设计密钥管理和域名白名单策略。
 
