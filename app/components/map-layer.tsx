@@ -324,28 +324,61 @@ function attachScriptResolution(
   resolve: (mapBridge: NanMapBridge) => void,
   reject: (error: Error) => void,
 ) {
-  if (window.map) {
-    resolve(window.map);
-    return;
-  }
+  const timeoutMs = 30_000;
+  const pollIntervalMs = 50;
+  const startedAt = performance.now();
 
-  script.addEventListener(
-    "load",
-    () => {
-      if (window.map) {
-        resolve(window.map);
-        return;
-      }
+  let timer: number | undefined;
+  let settled = false;
 
-      reject(new Error("public/map.js 未暴露 window.map"));
-    },
-    { once: true },
-  );
-  script.addEventListener(
-    "error",
-    () => reject(new Error("public/map.js 加载失败")),
-    { once: true },
-  );
+  const cleanup = () => {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+    }
+
+    script.removeEventListener("error", handleError);
+  };
+
+  const finishResolve = (mapBridge: NanMapBridge) => {
+    if (settled) return;
+
+    settled = true;
+    cleanup();
+    resolve(mapBridge);
+  };
+
+  const finishReject = (error: Error) => {
+    if (settled) return;
+
+    settled = true;
+    cleanup();
+    reject(error);
+  };
+
+  const waitForMapBridge = () => {
+    if (window.map) {
+      finishResolve(window.map);
+      return;
+    }
+
+    if (performance.now() - startedAt >= timeoutMs) {
+      finishReject(
+        new Error("public/map.js 已加载，但 VM 初始化超时，未暴露 window.map"),
+      );
+      return;
+    }
+
+    timer = window.setTimeout(waitForMapBridge, pollIntervalMs);
+  };
+
+  const handleError = () => {
+    finishReject(new Error("public/map.js 加载失败"));
+  };
+
+  script.addEventListener("error", handleError, { once: true });
+
+  // 不依赖 load 事件，因为带顶层 await 的 VM 模块可能在 load 后继续执行。
+  waitForMapBridge();
 }
 
 function getErrorMessage(error: unknown) {
