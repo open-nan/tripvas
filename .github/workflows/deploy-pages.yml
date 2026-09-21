@@ -20,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout JS VM hardener
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: open-nan/js_vm
           ref: 6514932758469b35eae40779b541db4400542e7e
@@ -36,15 +36,13 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Configure site base path
         shell: bash
