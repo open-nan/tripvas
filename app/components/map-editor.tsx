@@ -125,7 +125,9 @@ export default function MapEditor() {
   const [transportMode, setTransportMode] = useState<TransportMode>("drive");
   const [city, setCity] = useState("");
   const [isLocated, setIsLocated] = useState(false);
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(
+    initialMarkers.length === 0,
+  );
   const [activeWhiteboardTool, setActiveWhiteboardTool] =
     useState<WhiteboardTool>("move");
   const [activeWhiteboardBrush, setActiveWhiteboardBrush] =
